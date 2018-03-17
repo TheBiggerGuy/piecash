@@ -1,4 +1,5 @@
 from decimal import Decimal
+from fractions import Fraction, gcd
 
 from sqlalchemy import Column, VARCHAR, INTEGER, cast, Float
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -80,27 +81,39 @@ def hybrid_property_gncnumeric(num_col, denom_col):
             num, denom = None, None
         else:
             if isinstance(d, tuple):
-                d = Decimal(d[0]) / d[1]
-            elif isinstance(d, (int, long, str)):
-                d = Decimal(d)
+                num = d[0]
+                denom = d[1]
+            elif isinstance(d, (int, long)):
+                num = d
+                denom = 1
+            elif isinstance(d, Fraction):
+                num = d.numerator
+                denom = d.denominator
+                frac_gcd = gcd(num, denom)
+                if frac_gcd != 1:
+                    num = int(num / frac_gcd)
+                    denom = int(denom / frac_gcd)
             elif isinstance(d, float):
                 raise TypeError(("Received a floating-point number {} where a decimal is expected. " +
                                  "Use a Decimal, str, or int instead").format(d))
-            elif not isinstance(d, Decimal):
+            elif not isinstance(d, Decimal) and not isinstance(str):
                 raise TypeError(("Received an unknown type {} where a decimal is expected. " +
                                  "Use a Decimal, str, or int instead").format(type(d).__name__))
+            else:
+                if isinstance(d, str):
+                    d = Decimal(d)
+                if hasattr(d, 'as_integer_ratio'): # new in Python 3.6
+                    (num, denom) = d.as_integer_ratio()
+                else: # fallback in older versions
+                    sign, digits, exp = d.as_tuple()
+                    denom = 10 ** max(-exp, 0)
 
-            if hasattr(d, 'as_integer_ratio'): # new in Python 3.6
-                (num, denom) = d.as_integer_ratio()
-            else: # fallback in older versions
-                sign, digits, exp = d.as_tuple()
-                denom = 10 ** max(-exp, 0)
+                    denom_basis = getattr(self, "{}_basis".format(denom_name), None)
+                    if denom_basis is not None:
+                        denom = denom_basis
 
-                denom_basis = getattr(self, "{}_basis".format(denom_name), None)
-                if denom_basis is not None:
-                    denom = denom_basis
+                    num = int(d * denom)
 
-                num = int(d * denom)
             if not ((-MAX_NUMBER < num < MAX_NUMBER) and (-MAX_NUMBER < denom < MAX_NUMBER)):
                 raise ValueError(("The amount '{}' cannot be represented in GnuCash. " +
                                   "Either it is too large or it has too many decimals").format(d))
@@ -113,7 +126,7 @@ def hybrid_property_gncnumeric(num_col, denom_col):
         if num is None:
             return
         else:
-            return Decimal(num) / denom
+            return Decimal(num) / Decimal(denom)
 
     def expr(cls):
         # todo: cast into Decimal for postgres and for sqlite (for the latter, use sqlite3.register_converter ?)

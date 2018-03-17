@@ -2,6 +2,7 @@ import datetime
 import uuid
 from collections import defaultdict
 from decimal import Decimal
+from fractions import Fraction
 
 from sqlalchemy import Column, VARCHAR, ForeignKey, BIGINT, INTEGER
 from sqlalchemy.orm import relation, validates, foreign
@@ -149,7 +150,6 @@ class Split(DeclarativeBaseGuid):
             # let us also add a Price
             from piecash import Price
 
-            value = (self.value / self.quantity).quantize(Decimal("0.0000000000000001"))
             try:
                 # find existing price if any and if so, do nothing
                 pr = self.book.prices(commodity=self.account.commodity,
@@ -159,6 +159,7 @@ class Split(DeclarativeBaseGuid):
 
             except KeyError:
                 # otherwise, add a price in the database
+                value = round(Fraction(self.value) / Fraction(self.quantity), 18)
                 pr = Price(commodity=self.account.commodity,
                            currency=self.transaction.currency,
                            date=self.transaction.post_date,
@@ -286,13 +287,13 @@ class Transaction(DeclarativeBaseGuid):
 
     def calculate_imbalances(self):
         """Calculate value and quantity imbalances of a transaction"""
-        value_imbalance = Decimal(0)  # hold imbalance on split.value
-        quantity_imbalances = defaultdict(Decimal)  # hold imbalance on split.quantity per cdty
+        value_imbalance = Fraction(0)  # hold imbalance on split.value
+        quantity_imbalances = defaultdict(Fraction)  # hold imbalance on split.quantity per cdty
 
         # collect imbalance information
         for sp in self.splits:
-            value_imbalance += sp.value
-            quantity_imbalances[sp.account.commodity] += sp.quantity
+            value_imbalance += Fraction(sp.value)
+            quantity_imbalances[sp.account.commodity] += Fraction(sp.quantity)
 
         return value_imbalance, quantity_imbalances
 
@@ -300,8 +301,8 @@ class Transaction(DeclarativeBaseGuid):
         # collect imbalance information
         classic_splits = defaultdict(list)
         trading_splits = defaultdict(list)
-        trading_target_value = defaultdict(Decimal)
-        trading_target_quantity = defaultdict(Decimal)
+        trading_target_value = defaultdict(Fraction)
+        trading_target_quantity = defaultdict(Fraction)
 
         for sp in self.splits:
             cdty = sp.account.commodity
@@ -310,8 +311,8 @@ class Transaction(DeclarativeBaseGuid):
                 trading_splits[cdty].append(sp)
             else:
                 classic_splits[cdty].append(sp)
-            trading_target_value[cdty] += sp.value
-            trading_target_quantity[cdty] += sp.quantity
+            trading_target_value[cdty] += Fraction(sp.value)
+            trading_target_quantity[cdty] += Fraction(sp.quantity)
 
         root = self.book.root_account
         # imbalance in quantities to be settled using trading accounts
