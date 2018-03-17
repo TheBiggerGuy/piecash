@@ -90,14 +90,17 @@ def hybrid_property_gncnumeric(num_col, denom_col):
                 raise TypeError(("Received an unknown type {} where a decimal is expected. " +
                                  "Use a Decimal, str, or int instead").format(type(d).__name__))
 
-            sign, digits, exp = d.as_tuple()
-            denom = 10 ** max(-exp, 0)
+            if hasattr(d, 'as_integer_ratio'): # new in Python 3.6
+                (num, denom) = d.as_integer_ratio()
+            else: # fallback in older versions
+                sign, digits, exp = d.as_tuple()
+                denom = 10 ** max(-exp, 0)
 
-            denom_basis = getattr(self, "{}_basis".format(denom_name), None)
-            if denom_basis is not None:
-                denom = denom_basis
+                denom_basis = getattr(self, "{}_basis".format(denom_name), None)
+                if denom_basis is not None:
+                    denom = denom_basis
 
-            num = int(d * denom)
+                num = int(d * denom)
             if not ((-MAX_NUMBER < num < MAX_NUMBER) and (-MAX_NUMBER < denom < MAX_NUMBER)):
                 raise ValueError(("The amount '{}' cannot be represented in GnuCash. " +
                                   "Either it is too large or it has too many decimals").format(d))
