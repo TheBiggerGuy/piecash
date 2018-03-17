@@ -149,7 +149,7 @@ class Split(DeclarativeBaseGuid):
             # let us also add a Price
             from piecash import Price
 
-            value = (self.value / self.quantity).quantize(Decimal("0.000001"))
+            value = (self.value / self.quantity).quantize(Decimal("0.0000000000000001"))
             try:
                 # find existing price if any and if so, do nothing
                 pr = self.book.prices(commodity=self.account.commodity,
