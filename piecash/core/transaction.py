@@ -74,6 +74,7 @@ class Split(DeclarativeBaseGuid):
                  reconcile_date=None,
                  reconcile_state="n",
                  lot=None,
+                 add_user_split_price_if_missing=True,
                  ):
         self.transaction = transaction
         self.account = account
@@ -84,6 +85,7 @@ class Split(DeclarativeBaseGuid):
         self.reconcile_date = reconcile_date
         self.reconcile_state = reconcile_state
         self.lot = lot
+        self.add_user_split_price_if_missing = add_user_split_price_if_missing
 
     def __unirepr__(self):
         try:
@@ -146,7 +148,7 @@ class Split(DeclarativeBaseGuid):
         self._quantity_denom_basis = self.account.commodity_scu
         self._value_denom_basis = self.transaction.currency.fraction
 
-        if self.transaction.currency != self.account.commodity:
+        if self.add_user_split_price_if_missing and self.transaction.currency != self.account.commodity:
             # let us also add a Price
             from piecash import Price
 
